@@ -3,7 +3,6 @@
 import numpy as np
 from . import wrapped_distances
 import inspect
-import imp
 import pickle
 from .isotropic_cov_funs import symmetrize, imul
 from copy import copy

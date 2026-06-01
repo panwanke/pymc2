@@ -20,7 +20,6 @@ __all__ = [
 import sys
 import inspect
 import pdb
-from imp import load_dynamic
 from .PyMCObjects import Stochastic, Deterministic, Potential
 from .Node import ZeroProbability, ContainerBase, Node, StochasticMeta
 from .Container import Container

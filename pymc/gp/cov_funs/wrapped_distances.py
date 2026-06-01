@@ -1,5 +1,4 @@
 import numpy as np
-import imp
 import pymc
 
 from . import distances
