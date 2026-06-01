@@ -1,9 +1,10 @@
 from .Node import Variable, ContainerBase
 from copy import copy
 from numpy import ndarray, array, zeros, shape, arange, where
+cimport numpy as np
 
 cdef extern from "numpy/ndarrayobject.h":
-    void* PyArray_DATA(object obj)
+    void* PyArray_DATA(np.ndarray obj)
 
 cdef class LCValue:
     """

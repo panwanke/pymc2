@@ -3,8 +3,7 @@ from __future__ import division
 import numpy as np
 from .utils import msqrt, check_type, round_array, float_dtypes, integer_dtypes, bool_dtypes, safe_len, find_generations, logp_of_set, symmetrize, logp_gradient_of_set, get_signature
 from numpy import ndim, ones, zeros, log, shape, cov, ndarray, inner, reshape, sqrt, any, array, all, abs, exp, where, isscalar, iterable, multiply, transpose, tri, pi
-from numpy.linalg.linalg import LinAlgError
-from numpy.linalg import pinv, cholesky
+from numpy.linalg import LinAlgError, pinv, cholesky
 from numpy.random import randint, random
 from numpy.random import normal as rnormal
 from numpy.random import poisson as rpoisson
@@ -1993,7 +1992,7 @@ class Slicer(StepMethod):
         try:
             logy_new = self.loglike
         except ZeroProbability:
-            logy_new = -np.infty
+            logy_new = -np.inf
         while(logy_new < logy):
             if (self.stochastic.value < self.stochastic.last_value):
                 L = float(self.stochastic.value)
@@ -2004,7 +2003,7 @@ class Slicer(StepMethod):
             try:
                 logy_new = self.loglike
             except ZeroProbability:
-                logy_new = -np.infty
+                logy_new = -np.inf
 
     def fll(self, value):
         """
@@ -2014,7 +2013,7 @@ class Slicer(StepMethod):
         try:
             ll = self.loglike
         except ZeroProbability:
-            ll = -np.infty
+            ll = -np.inf
         self.stochastic.revert()
         return ll
 

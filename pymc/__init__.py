@@ -11,6 +11,16 @@ __version__ = '2.3.8'
 
 try:
     import numpy
+    for _name, _value in {
+            'Inf': numpy.inf,
+            'infty': numpy.inf,
+            'NaN': numpy.nan,
+            'int': int,
+            'float': float,
+            'complex': complex,
+            'object': object}.items():
+        if _name not in numpy.__dict__:
+            setattr(numpy, _name, _value)
 except ImportError as ie:
     print(ie,
         '\nNumPy does not seem to be installed. Please see the user guide.')

@@ -104,14 +104,8 @@ typedef struct
  * be the same as the byte-order of ints. However, it works.
  */
 
-#include <pyconfig.h>
-#ifdef WORDS_BIGENDIAN
-# define MIEEE 1
-# define BIGENDIAN 1
-#else
-# define IBMPC 1
-# define BIGENDIAN 0
-#endif
+#define UNK 1
+#define BIGENDIAN 0
 
 /* UNKnown arithmetic, invokes coefficients given in
  * normal decimal format.  Beware of range boundary

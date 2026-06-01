@@ -596,7 +596,7 @@ def debug_wrapper(func, name):
 # Utility functions
 #-------------------------------------------------------------
 
-def constrain(value, lower=-np.Inf, upper=np.Inf, allow_equal=False):
+def constrain(value, lower=-np.inf, upper=np.inf, allow_equal=False):
     """
     Apply interval constraint on stochastic value.
     """
@@ -3047,7 +3047,7 @@ def one_over_x_like(x):
     returns -np.Inf if x<0, -np.log(x) otherwise.
     """
     if np.any(x < 0):
-        return -np.Inf
+        return -np.inf
     else:
         return -np.sum(np.log(x))
 

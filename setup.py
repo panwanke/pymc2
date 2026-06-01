@@ -1,170 +1,164 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Do not add setuptools here; use setupegg.py instead. Nose still has problems running
-# tests inside of egg packages, so it is useful to be able to install without eggs as needed.
 
 from __future__ import print_function
-from pkg_resources import parse_version
 
-import os, sys
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
-dist = sys.argv[1]
+from packaging.version import Version
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext as _build_ext
 
-numpy_min_version = '1.8'
 
-def get_numpy_status():
-    """
-    Returns a dictionary containing a boolean specifying whether NumPy
-    is up-to-date, along with the version string (empty string if
-    not installed).
-    """
-    numpy_status = {}
+ROOT = Path(__file__).parent.resolve()
+NUMPY_MIN_VERSION = "1.8"
+
+
+def check_numpy():
     try:
         import numpy
-        numpy_version = numpy.__version__
-        numpy_status['up_to_date'] = parse_version(
-            numpy_version) >= parse_version(numpy_min_version)
-        numpy_status['version'] = numpy_version
-    except ImportError:
-        numpy_status['up_to_date'] = False
-        numpy_status['version'] = ""
-    return numpy_status
+    except ImportError as exc:
+        raise ImportError("PyMC requires NumPy >= {0}.".format(NUMPY_MIN_VERSION)) from exc
 
-def build_ext(config):
-    # ==============================
-    # = Compile Fortran extensions =
-    # ==============================
-    
-    from numpy.distutils.system_info import get_info
-    
-
-    # If optimized lapack/ BLAS libraries are present, compile distributions that involve linear algebra against those.
-    # Otherwise compile blas and lapack from netlib sources.
-    lapack_info = get_info('lapack_opt',1)
-    f_sources = ['pymc/flib.f','pymc/histogram.f', 'pymc/flib_blas.f', 'pymc/blas_wrap.f', 'pymc/math.f', 'pymc/gibbsit.f', 'cephes/i0.c',
-                 'cephes/c2f.c','cephes/chbevl.c']
-    if lapack_info:
-        config.add_extension(name='flib',sources=f_sources, extra_info=lapack_info, f2py_options=['skip:', 'ppnd7', ':'])
-
-    if not lapack_info or dist in ['bdist', 'sdist']:
-        ##inc_dirs = ['blas/BLAS','lapack/double']
-        print('No optimized BLAS or Lapack libraries found, building from source. This may take a while...')
-        for fname in os.listdir('blas/BLAS'):
-            # Make sure this is a Fortran file, and not one of those weird hidden files that
-            # pop up sometimes in the tarballs
-            if fname[-2:]=='.f' and fname[0].find('_')==-1:
-                f_sources.append('blas/BLAS/'+fname)
+    if Version(numpy.__version__) < Version(NUMPY_MIN_VERSION):
+        raise ImportError(
+            "Your NumPy installation ({0}) is too old. PyMC requires NumPy >= {1}.".format(
+                numpy.__version__, NUMPY_MIN_VERSION
+            )
+        )
+    return numpy
 
 
-        for fname in ['dpotrs','dpotrf','dpotf2','ilaenv','dlamch','ilaver','ieeeck','iparmq']:
-            f_sources.append('lapack/double/'+fname+'.f')
-        config.add_extension(name='flib',sources=f_sources)
+def rel(*parts):
+    return str(ROOT.joinpath(*parts))
 
 
-    # ============================
-    # = Compile Pyrex extensions =
-    # ============================
+F2PY_EXTENSIONS = [
+    {
+        "package": "pymc",
+        "module": "flib",
+        "sources": [
+            rel("pymc", "flib.f"),
+            "skip:",
+            "ppnd7",
+            ":",
+            rel("pymc", "histogram.f"),
+            rel("pymc", "flib_blas.f"),
+            rel("pymc", "blas_wrap.f"),
+            rel("pymc", "math.f"),
+            rel("pymc", "gibbsit.f"),
+            rel("cephes", "i0.c"),
+            rel("cephes", "c2f.c"),
+            rel("cephes", "chbevl.c"),
+        ],
+        "deps": ["lapack", "blas"],
+        "include_paths": [rel("cephes")],
+    },
+    {
+        "package": "pymc.gp",
+        "module": "linalg_utils",
+        "sources": [rel("pymc", "gp", "linalg_utils.f"), rel("pymc", "blas_wrap.f")],
+        "deps": ["lapack", "blas"],
+    },
+    {
+        "package": "pymc.gp",
+        "module": "incomplete_chol",
+        "sources": [rel("pymc", "gp", "incomplete_chol.f"), rel("pymc", "blas_wrap.f")],
+        "deps": ["lapack", "blas"],
+    },
+    {
+        "package": "pymc.gp.cov_funs",
+        "module": "isotropic_cov_funs",
+        "sources": [rel("pymc", "gp", "cov_funs", "isotropic_cov_funs.f"), rel("blas", "BLAS", "dscal.f")],
+    },
+    {
+        "package": "pymc.gp.cov_funs",
+        "module": "distances",
+        "sources": [rel("pymc", "gp", "cov_funs", "distances.f")],
+    },
+]
 
-    config.add_extension(name='LazyFunction',sources=['pymc/LazyFunction.c'])
-    config.add_extension(name='Container_values', sources='pymc/Container_values.c')
 
-    config_dict = config.todict()
-    try:
-        config_dict.pop('packages')
-    except:
-        pass
+class build_ext(_build_ext):
+    def run(self):
+        super().run()
+        self.build_f2py_extensions()
+
+    def build_f2py_extensions(self):
+        for spec in F2PY_EXTENSIONS:
+            self.build_f2py_extension(spec)
+
+    def build_f2py_extension(self, spec):
+        build_dir = Path(self.build_temp) / ("f2py_" + spec["module"])
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        command = [
+            sys.executable,
+            "-m",
+            "numpy.f2py",
+            "-c",
+            "-m",
+            spec["module"],
+        ]
+        for include_path in spec.get("include_paths", []):
+            command.extend(["--include-paths", include_path])
+        for dep in spec.get("deps", []):
+            command.extend(["--dep", dep])
+        command.extend(spec["sources"])
+
+        subprocess.check_call(command, cwd=str(build_dir))
+
+        built = list(build_dir.glob(spec["module"] + "*.so")) + list(build_dir.glob(spec["module"] + "*.pyd"))
+        if not built:
+            raise RuntimeError("f2py did not produce an extension for {0}".format(spec["module"]))
+
+        package_dir = Path(self.build_lib).joinpath(*spec["package"].split("."))
+        package_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(built[0]), str(package_dir / built[0].name))
 
 
-    # ===========================================
-    # = Compile GP package's Fortran extensions =
-    # ===========================================
+numpy = check_numpy()
 
-    # Compile linear algebra utilities
-    if lapack_info:
-        config.add_extension(name='gp.linalg_utils',sources=['pymc/gp/linalg_utils.f','pymc/blas_wrap.f'], extra_info=lapack_info)
-        config.add_extension(name='gp.incomplete_chol',sources=['pymc/gp/incomplete_chol.f'], extra_info=lapack_info)
+try:
+    from Cython.Build import cythonize
 
-    if not lapack_info or dist in ['bdist', 'sdist']:
-        print('No optimized BLAS or Lapack libraries found, building from source. This may take a while...')
-        f_sources = ['pymc/blas_wrap.f']
-        for fname in os.listdir('blas/BLAS'):
-            if fname[-2:]=='.f':
-                f_sources.append('blas/BLAS/'+fname)
-
-        for fname in ['dpotrs','dpotrf','dpotf2','ilaenv','dlamch','ilaver','ieeeck','iparmq']:
-            f_sources.append('lapack/double/'+fname+'.f')
-
-        config.add_extension(name='gp.linalg_utils',sources=['pymc/gp/linalg_utils.f'] + f_sources)
-        config.add_extension(name='gp.incomplete_chol',sources=['pymc/gp/incomplete_chol.f'] + f_sources)
+    ext_modules = cythonize(
+        [
+            Extension("pymc.LazyFunction", [rel("pymc", "LazyFunction.pyx")], include_dirs=[numpy.get_include()]),
+            Extension("pymc.Container_values", [rel("pymc", "Container_values.pyx")], include_dirs=[numpy.get_include()]),
+        ],
+        compiler_directives={"language_level": "3"},
+    )
+except ImportError:
+    ext_modules = [
+        Extension("pymc.LazyFunction", [rel("pymc", "LazyFunction.c")], include_dirs=[numpy.get_include()]),
+        Extension("pymc.Container_values", [rel("pymc", "Container_values.c")], include_dirs=[numpy.get_include()]),
+    ]
 
 
-    # Compile covariance functions
-    config.add_extension(name='gp.cov_funs.isotropic_cov_funs',\
-    sources=['pymc/gp/cov_funs/isotropic_cov_funs.f','blas/BLAS/dscal.f'],\
-    extra_info=lapack_info)
-
-    config.add_extension(name='gp.cov_funs.distances',sources=['pymc/gp/cov_funs/distances.f'], extra_info=lapack_info)
-    
-    return config_dict
-
-def setup_pymc():
-
-    numpy_status = get_numpy_status()
-    numpy_req_str = "PyMC requires NumPy >= {0}.\n".format(
-        numpy_min_version)
-        
-    if numpy_status['up_to_date'] is False:
-        if numpy_status['version']:
-            raise ImportError("Your installation of NumPy"
-                              "{0} is out-of-date.\n{1}"
-                              .format(numpy_status['version'],
-                                      numpy_req_str))
-        else:
-            raise ImportError("NumPy is not installed.\n{0}"
-                              .format(numpy_req_str))
-                              
-    
-    from numpy.distutils.misc_util import Configuration
-    from numpy.distutils.core import setup
-    
-    config_dict = build_ext(Configuration('pymc',parent_package=None,top_path=None))
-                              
-    
-    setup(  version="2.3.8",
-            description="Markov Chain Monte Carlo sampling toolkit.",
-            author="Christopher Fonnesbeck, Anand Patil and David Huard",
-            author_email="fonnesbeck@gmail.com ",
-            url="http://github.com/pymc-devs/pymc",
-            license="Academic Free License",
-            classifiers=[
-                'Development Status :: 5 - Production/Stable',
-                'Environment :: Console',
-                'Operating System :: OS Independent',
-                'Intended Audience :: Science/Research',
-                'License :: OSI Approved :: Academic Free License (AFL)',
-                'Programming Language :: Python',
-                'Programming Language :: Fortran',
-                'Topic :: Scientific/Engineering',
-                 ],
-            requires=['NumPy (>=1.8)',],
-            long_description="""
-            Bayesian estimation, particularly using Markov chain Monte Carlo (MCMC),
-            is an increasingly relevant approach to statistical estimation. However,
-            few statistical software packages implement MCMC samplers, and they are
-            non-trivial to code by hand. ``pymc`` is a python package that implements the
-            Metropolis-Hastings algorithm as a python class, and is extremely
-            flexible and applicable to a large suite of problems. ``pymc`` includes
-            methods for summarizing output, plotting, goodness-of-fit and convergence
-            diagnostics.
-
-            ``pymc`` only requires ``NumPy``. All other dependencies such as ``matplotlib``,
-            ``SciPy``, ``pytables``, ``sqlite`` or ``mysql`` are optional.
-            """,
-            packages=["pymc", "pymc/database", "pymc/examples", "pymc/examples/gp", "pymc/tests", "pymc/gp", "pymc/gp/cov_funs"],
-            **(config_dict))
-            
-if __name__ == '__main__':
-    setup_pymc()
-    
-    
-
+setup(
+    name="PyMC",
+    version="2.3.8",
+    description="Markov Chain Monte Carlo sampling toolkit.",
+    author="Christopher Fonnesbeck, Anand Patil and David Huard",
+    author_email="fonnesbeck@gmail.com ",
+    url="http://github.com/pymc-devs/pymc",
+    license="Academic Free License",
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Environment :: Console",
+        "Operating System :: OS Independent",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: Academic Free License (AFL)",
+        "Programming Language :: Python",
+        "Programming Language :: Fortran",
+        "Topic :: Scientific/Engineering",
+    ],
+    install_requires=["numpy>=1.26,<2", "scipy"],
+    packages=find_packages(),
+    cmdclass={"build_ext": build_ext},
+    ext_modules=ext_modules,
+)

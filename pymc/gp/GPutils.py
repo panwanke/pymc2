@@ -9,8 +9,7 @@ __all__ = ['observe', 'plot_envelope', 'predictive_check', 'regularize_array', '
 # in observe().
 
 from numpy import *
-from numpy.linalg import solve, cholesky, eigh
-from numpy.linalg.linalg import LinAlgError
+from numpy.linalg import LinAlgError, solve, cholesky, eigh
 from .linalg_utils import *
 from threading import Thread, Lock
 import sys

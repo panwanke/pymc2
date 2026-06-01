@@ -6,7 +6,7 @@ __all__ = ['NormApproxMu', 'NormApproxC', 'MAP', 'NormApprox']
 from .Node import ZeroProbability
 from .Model import Model, Sampler
 from numpy import zeros, inner, asmatrix, ndarray
-from numpy import reshape, shape, arange, ravel, log, Inf
+from numpy import reshape, shape, arange, ravel, log, inf as Inf
 from numpy.random import normal
 from .utils import msqrt, check_type, round_array, logp_of_set
 from copy import copy
@@ -17,10 +17,15 @@ xrange = six.moves.xrange
 
 try:
     from scipy.optimize import fmin_ncg, fmin, fmin_powell, fmin_cg, fmin_bfgs, fmin_ncg, fmin_l_bfgs_b
-    from scipy.misc import derivative
     scipy_imported = True
 except ImportError:
     scipy_imported = False
+
+
+def derivative(func, x0, dx=1e-6, n=1, order=3, args=(), **kwds):
+    if n != 1:
+        raise ValueError("Only first derivatives are supported.")
+    return (func(x0 + dx, *args, **kwds) - func(x0 - dx, *args, **kwds)) / (2.0 * dx)
 
 
 class NormApproxMu(object):

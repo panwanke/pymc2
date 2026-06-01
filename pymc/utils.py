@@ -13,8 +13,7 @@ from copy import copy
 from .PyMCObjects import Variable
 from . import flib
 import pdb
-from numpy.linalg.linalg import LinAlgError
-from numpy.linalg import cholesky, eigh
+from numpy.linalg import LinAlgError, cholesky, eigh
 from .Node import logp_of_set, logp_gradient_of_set
 import types
 from .datatypes import *
@@ -50,7 +49,8 @@ def get_signature_py3(func):
     return args, defaults
     
 def get_signature_py2(func):
-    (args, varargs, varkw, defaults) = inspect.getargspec(func)
+    (args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults,
+        annotations) = inspect.getfullargspec(func)
     return args, defaults
     
     
