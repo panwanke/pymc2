@@ -3,7 +3,7 @@ requires = [
   "setuptools>=69",
   "wheel",
   "packaging",
-  "numpy>=1.26,<2",
+  "numpy>=2,<3",
   "scipy",
   "Cython>=3",
   "charset_normalizer",

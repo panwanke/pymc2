@@ -1,9 +1,14 @@
-from numpy import obj2sctype, ndarray
+from numpy import ndarray
 from numpy import bool_
 from numpy import byte, short, intc, int_, longlong, intp
 from numpy import ubyte, ushort, uintc, uint, ulonglong, uintp
-from numpy import single, float_, longfloat
-from numpy import csingle, complex_, clongfloat
+from numpy import single, float64, longdouble
+from numpy import csingle, complex128, clongdouble
+
+float_ = float64
+longfloat = longdouble
+complex_ = complex128
+clongfloat = clongdouble
 
 # These are only used for membership tests, but things break if they are sets
 # rather than lists. TK, Jan 2012.
@@ -51,13 +56,13 @@ def check_type(stochastic):
     elif val.__class__ in complex_dtypes:
         return complex, ()
     elif isinstance(val, ndarray):
-        if obj2sctype(val) in bool_dtypes:
+        if val.dtype.type in bool_dtypes:
             return bool, val.shape
-        elif obj2sctype(val) in integer_dtypes:
+        elif val.dtype.type in integer_dtypes:
             return int, val.shape
-        elif obj2sctype(val) in float_dtypes:
+        elif val.dtype.type in float_dtypes:
             return float, val.shape
-        elif obj2sctype(val) in complex_dtypes:
+        elif val.dtype.type in complex_dtypes:
             return complex, val.shape
         else:
             return 'object', val.shape

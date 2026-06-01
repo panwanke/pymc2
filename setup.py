@@ -14,7 +14,7 @@ from setuptools.command.build_ext import build_ext as _build_ext
 
 
 ROOT = Path(__file__).parent.resolve()
-NUMPY_MIN_VERSION = "1.8"
+NUMPY_MIN_VERSION = "2.0"
 
 
 def check_numpy():
@@ -131,6 +131,7 @@ try:
             Extension("pymc.Container_values", [rel("pymc", "Container_values.pyx")], include_dirs=[numpy.get_include()]),
         ],
         compiler_directives={"language_level": "3"},
+        force=True,
     )
 except ImportError:
     ext_modules = [
@@ -157,7 +158,7 @@ setup(
         "Programming Language :: Fortran",
         "Topic :: Scientific/Engineering",
     ],
-    install_requires=["numpy>=1.26,<2", "scipy"],
+    install_requires=["numpy>=2,<3", "scipy"],
     packages=find_packages(),
     cmdclass={"build_ext": build_ext},
     ext_modules=ext_modules,
